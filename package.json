@@ -1,0 +1,12 @@
+{
+  "name": "pd-backup",
+  "version": "0.1.0",
+  "description": "Pull PD data periodically",
+  "main": "index.js",
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "shelljs": "^0.8.4"
+  }
+}
