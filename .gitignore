@@ -1,3 +1,5 @@
 /node_modules
 /.direnv
+/bin
 recover-info.json
+pd-recover

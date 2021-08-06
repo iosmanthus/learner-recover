@@ -1,12 +1,14 @@
 {
-  "name": "pd-backup",
+  "name": "learner-recover",
   "version": "0.1.0",
-  "description": "Pull PD data periodically",
+  "description": "recover tikv cluster from learners",
   "main": "index.js",
   "author": "",
   "license": "MIT",
   "dependencies": {
     "axios": "^0.21.1",
-    "shelljs": "^0.8.4"
+    "js-yaml": "^4.1.0",
+    "shelljs": "^0.8.4",
+    "yargs": "^17.1.0"
   }
 }

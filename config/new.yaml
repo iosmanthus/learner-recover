@@ -1,0 +1,12 @@
+global:
+  user: "root"
+  ssh_port: 22
+monitored:
+  node_exporter_port: 9200
+  blackbox_exporter_port: 9215
+pd_servers:
+  - host: 172.16.5.161
+    name: pd-new
+    deploy_dir: /root/deploy/pd-new
+    data_dir: /root/data/pd-new
+    log_dir: "/root/deploy/pd-new/log"

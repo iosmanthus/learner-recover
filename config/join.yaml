@@ -1,0 +1,7 @@
+tikv_servers:
+  - host: 172.16.4.193
+    port: 20161
+    status_port: 20181
+    deploy_dir: /root/deploy/tikv
+    data_dir: /root/data/tikv
+    log_dir: "/root/deploy/tikv/log"

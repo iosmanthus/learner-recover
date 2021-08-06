@@ -1,0 +1,53 @@
+global:
+  user: "root"
+  ssh_port: 22
+server_configs:
+  pd:
+    replication.location-labels: ["zone", "host"]
+pd_servers:
+  - host: 172.16.4.188
+    deploy_dir: /root/deploy/pd
+    data_dir: /root/data/pd
+    log_dir: "/root/deploy/pd/log"
+tikv_servers:
+  - host: 172.16.4.188
+    deploy_dir: /root/deploy/tikv
+    data_dir: /root/data/tikv
+    log_dir: "/root/deploy/tikv/log"
+    config:
+      server.labels:
+        zone: master
+        host: host0
+  - host: 172.16.5.129
+    deploy_dir: /root/deploy/tikv
+    data_dir: /root/data/tikv
+    log_dir: "/root/deploy/tikv/log"
+    config:
+      server.labels:
+        zone: master
+        host: host1
+  - host: 172.16.4.144
+    deploy_dir: /root/deploy/tikv
+    data_dir: /root/data/tikv
+    log_dir: "/root/deploy/tikv/log"
+    config:
+      server.labels:
+        zone: master
+        host: host2
+  - host: 172.16.4.193
+    deploy_dir: /root/deploy/tikv
+    data_dir: /root/data/tikv
+    log_dir: "/root/deploy/tikv/log"
+    config:
+      server.labels:
+        zone: backup
+        host: host0
+  
+monitoring_servers:
+  - host: 172.16.4.193
+    deploy_dir: "/root/deploy/prometheus"
+    data_dir: "/root/data/prometheus"
+    log_dir: "/root/deploy/prometheus/log"
+grafana_servers:
+  - host: 172.16.4.193
+    deploy_dir: "/root/deploy/grafana"

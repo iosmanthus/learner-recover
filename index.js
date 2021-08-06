@@ -1,15 +1,53 @@
 const axios = require('axios');
+const yaml = require('js-yaml');
 const fs = require('fs');
+const yargs = require('yargs/yargs')
+const { hideBin } = require('yargs/helpers');
 
-const zone = 'master';
-const pdUrl = 'http://172.16.4.188:2379';
-const promUrl = 'http://172.16.4.193:9090';
-const to = './recover-info.json';
+const argv = yargs(hideBin(process.argv))
+    .option('topo', {
+        alias: 't',
+        type: 'string',
+        require: true,
+        description: 'path of topology file'
+    })
+    .option('zone', {
+        alias: 'z',
+        type: 'string',
+        require: true,
+        description: 'zone that need info backup'
+    })
+    .option('save', {
+        alias: 's',
+        type: 'string',
+        require: true,
+        description: 'path to save cluster info backup'
+    })
+    .option('interval', {
+        alias: 'i',
+        type: 'number',
+        default: 1,
+        description: 'path to save cluster info backup (s)'
+    })
+    .argv
+
 
 class RecoverInfoCollecter {
-    constructor({ pdAddr, promAddr, zone }) {
-        this.pdAddr = pdAddr;
-        this.promAddr = promAddr;
+    constructor({ topology, zone }) {
+        const pdServer = topology['pd_servers'].map(({ host, client_port }) => {
+            if (!client_port) {
+                client_port = 2379;
+            }
+            return { host, client_port }
+        })[0];
+        const promServer = topology['monitoring_servers'].map(({ host, port }) => {
+            if (!port) {
+                port = 9090;
+            }
+            return { host, port }
+        })[0];
+        this.pdAddr = `http://${pdServer.host}:${pdServer.client_port}`;
+        this.promAddr = `http://${promServer.host}:${promServer.port}`;
         this.zone = zone;
     }
     async collectStoreIds() {
@@ -45,21 +83,22 @@ class RecoverInfoCollecter {
     }
 }
 
-
-
 async function main() {
+    console.log(argv['topo']);
+    const topology = yaml.load(fs.readFileSync(argv['topo']));
+
     const collector = new RecoverInfoCollecter({
-        pdAddr: pdUrl,
-        promAddr: promUrl,
-        zone: zone
+        topology,
+        zone: argv['zone'],
     });
+
     try {
         const info = await collector.collect()
-        fs.writeFileSync(to, JSON.stringify(info));
-        console.log(`saved recover info to ${to}`);
+        fs.writeFileSync(argv['save'], JSON.stringify(info));
+        console.log(`saved recover info to ${argv['save']}`);
     } catch (err) {
         console.error(err.toString());
     }
 }
 
-setInterval(async () => { await main(); }, 1000);
+setInterval(async () => { await main(); }, argv['interval'] * 1000);
