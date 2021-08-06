@@ -3,6 +3,7 @@
 1. Install latest NodeJS >= 16, you may use [nvm](https://github.com/nvm-sh/nvm) to install it.
 2. Execute `npm install`.
 3. Install `TiUP` in current node.
+4. Install `pd-recover` in current node.
 
 # How it works
 
