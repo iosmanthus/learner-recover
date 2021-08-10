@@ -6,11 +6,12 @@ const { hideBin } = require('yargs/helpers')
 const axios = require('axios');
 const winston = require('winston');
 
-const logger = module.exports = winston.createLogger({
+const logger = winston.createLogger({
     transports: [new winston.transports.Console()],
     format: winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.colorize({ all: true }),
-        winston.format.simple()
+        winston.format.printf(info => `${info.timestamp} [${info.level}]: ${info.message}`),
     )
 });
 
