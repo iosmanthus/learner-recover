@@ -4,6 +4,15 @@ const fs = require('fs');
 const yargs = require('yargs/yargs')
 const { hideBin } = require('yargs/helpers')
 const axios = require('axios');
+const winston = require('winston');
+
+const logger = module.exports = winston.createLogger({
+    transports: [new winston.transports.Console()],
+    format: winston.format.combine(
+        winston.format.colorize({ all: true }),
+        winston.format.simple()
+    )
+});
 
 const argv = yargs(hideBin(process.argv))
     .option('config', {
@@ -36,9 +45,9 @@ class BackupCluster {
     }
 
     stop() {
-        console.log(this.nodes)
         for (const { host, port } of this.nodes) {
-            shell.exec(`ssh -p ${this.sshPort} ${this.user}@${host} systemctl stop tikv-${port}.service`);
+            shell.exec(`ssh -p ${this.sshPort} ${this.user}@${host} systemctl stop tikv-${port}.service`,
+                { fatal: true });
         }
     }
 
@@ -51,13 +60,14 @@ class BackupCluster {
         })
         for (const { host, data_dir } of this.nodes) {
             shell.exec(`ssh -p ${this.sshPort} ${this.user}@${host} \
-                ${tikvCtlPath} --data-dir ${data_dir} unsafe-recover remove-fail-stores -s ${failStores} --all-regions --promote-learner`);
+                ${tikvCtlPath} --data-dir ${data_dir} unsafe-recover remove-fail-stores -s ${failStores} --all-regions --promote-learner`,
+                { fatal: true });
         }
     }
 
     rebuildPDServer({ pdRecoverPath, version, clusterName, topoFile }) {
-        shell.exec(`tiup cluster deploy -y ${clusterName} ${version} ${topoFile}`);
-        shell.exec(`tiup cluster start -y ${clusterName}`);
+        shell.exec(`tiup cluster deploy -y ${clusterName} ${version} ${topoFile}`, { fatal: true });
+        shell.exec(`tiup cluster start -y ${clusterName}`, { fatal: true });
 
         const topo = yaml.load(fs.readFileSync(topoFile));
         const pdServers = topo['pd_servers'].map(({ host, client_port }) => {
@@ -73,9 +83,9 @@ class BackupCluster {
 
         console.log(anyone);
         shell.exec(`${pdRecoverPath} -endpoints http://${anyone.host}:${anyone.client_port} \
-            -cluster-id ${this.recoverInfo.clusterId} -alloc-id ${this.recoverInfo.allocId}`)
+            -cluster-id ${this.recoverInfo.clusterId} -alloc-id ${this.recoverInfo.allocId}`, { fatal: true })
 
-        shell.exec(`tiup cluster restart -y ${clusterName}`)
+        shell.exec(`tiup cluster restart -y ${clusterName}`, { fatal: true })
     }
 
     async joinLearners({ topoFile }) {
@@ -87,7 +97,7 @@ class BackupCluster {
             }
             break;
         }
-        shell.exec(`tiup cluster scale-out -y --force ${this.clusterName} ${topoFile}`)
+        shell.exec(`tiup cluster scale-out -y ${this.clusterName} ${topoFile}`, { fatal: true })
     }
 }
 
@@ -96,16 +106,21 @@ async function recover() {
     const topology = yaml.load(fs.readFileSync(config['old-topology']));
     const recoverInfo = JSON.parse(fs.readFileSync(config['recover-info-file']));
     const cluster = new BackupCluster({ topology, zoneName: config['recover-zone'], recoverInfo });
+    logger.info('Building backup cluster info');
     console.log(cluster);
 
+    logger.warn('Stopping TiKV learners');
     cluster.stop();
+    logger.warn('Unsafe recovering TiKV learners, this may take several minutes');
     cluster.unsafeRecover({ tikvCtlPath: config['tikv-ctl-path'] });
+    logger.warn('Rebuilding PD server');
     cluster.rebuildPDServer({
         pdRecoverPath: config['pd-recover-path'],
         version: config['cluster-version'],
         clusterName: config['cluster-name'],
         topoFile: config['new-topology']
     });
+    logger.warn('Joining TiKV learners');
     await cluster.joinLearners({
         topoFile: config['join-topology']
     });
