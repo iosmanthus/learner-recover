@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 const shell = require('shelljs');
 const yaml = require('js-yaml');
 const fs = require('fs');
