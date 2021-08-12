@@ -2,7 +2,6 @@
   "name": "@iosmanthus/learner-recover",
   "version": "0.1.0",
   "description": "recover tikv cluster from learners",
-  "main": "index.js",
   "author": "iosmanthus",
   "license": "MIT",
   "dependencies": {
@@ -12,6 +11,10 @@
     "shelljs": "^0.8.4",
     "winston": "^3.3.3",
     "yargs": "^17.1.0"
+  },
+  "bin": {
+     "fetcher": "./fetcher.js",
+     "recover": "./recover.js"
   },
   "devDependencies": {},
   "scripts": {
