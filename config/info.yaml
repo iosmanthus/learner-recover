@@ -1,0 +1,6 @@
+save: config/recover-info.json
+topo: config/old.yaml
+master-zone: master
+backup-zone: backup
+interval: 1 # unit: seconds
+repeat: 10 # how many times to fetch, 0 means never stop.

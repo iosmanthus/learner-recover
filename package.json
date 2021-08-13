@@ -13,10 +13,9 @@
     "yargs": "^17.1.0"
   },
   "bin": {
-     "fetcher": "./fetcher.js",
-     "recover": "./recover.js"
+    "fetcher": "./fetcher.sh",
+    "recover": "./recover.sh"
   },
-  "devDependencies": {},
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },

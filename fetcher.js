@@ -18,35 +18,11 @@ const logger = winston.createLogger({
 });
 
 const argv = yargs(hideBin(process.argv))
-    .option('topo', {
-        alias: 't',
+    .option('config', {
+        alias: 'c',
         type: 'string',
         require: true,
-        description: 'path of topology file'
-    })
-    .option('master-zone', {
-        alias: 'm',
-        type: 'string',
-        require: true,
-        description: 'zone that need info backup'
-    })
-    .option('backup-zone', {
-        alias: 'b',
-        type: 'string',
-        require: true,
-        description: 'zone that need calculate RPO'
-    })
-    .option('save', {
-        alias: 's',
-        type: 'string',
-        require: true,
-        description: 'path to save cluster info backup'
-    })
-    .option('interval', {
-        alias: 'i',
-        type: 'number',
-        default: 1,
-        description: 'path to save cluster info backup (s)'
+        description: 'config file path',
     })
     .argv
 
@@ -146,13 +122,13 @@ class RecoverInfoCollecter {
     }
 }
 
-async function main(info) {
-    const topology = yaml.load(fs.readFileSync(argv['topo']));
+async function fetch(config, info) {
+    const topology = yaml.load(fs.readFileSync(config['topo']));
 
     const collector = new RecoverInfoCollecter({
         topology,
-        masterZone: argv['master-zone'],
-        backupZone: argv['backup-zone'],
+        masterZone: config['master-zone'],
+        backupZone: config['backup-zone'],
     });
 
     try {
@@ -164,11 +140,29 @@ async function main(info) {
             info.allocId = newInfo.allocId;
             info.clusterId = newInfo.clusterId;
         }
-        fs.writeFileSync(argv['save'], JSON.stringify(info));
-        logger.info(`saved recover info to ${argv['save']}`);
+        fs.writeFileSync(config['save'], JSON.stringify(info));
+        logger.info(`saved recover info to ${config['save']}`);
     } catch (err) {
         logger.error(`fail to fetch backup info ${err.toString()}`)
     }
 }
 
-setInterval(async () => { let info; await main(info); }, argv['interval'] * 1000);
+
+function sleep(ms) {
+    return new Promise((resolve) => {
+        setTimeout(resolve, ms);
+    });
+}
+
+async function main() {
+    const config = yaml.load(fs.readFileSync(argv['config']));
+
+    const interval = config['interval'] ? parseInt(config['interval']) * 1000 : 1000;
+    const times = config['repeat'] ? parseInt(config['repeat']) : Number.MAX_SAFE_INTEGER;
+    for (let i = 0; i < times; i++) {
+        await fetch(config);
+        await sleep(interval);
+    }
+}
+
+main().then(() => { })
