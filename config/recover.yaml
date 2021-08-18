@@ -5,5 +5,7 @@ new-topology: config/new.yaml
 join-topology: config/join.yaml
 recover-info-file: config/recover-info.json
 recover-zone: backup
-tikv-ctl-path: /root/tikv-ctl
+tikv-ctl:
+  src: bin/tikv-ctl
+  dest: /root/tikv-ctl
 pd-recover-path: bin/pd-recover

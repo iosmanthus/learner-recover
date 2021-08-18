@@ -3,4 +3,4 @@ topo: config/old.yaml
 master-zone: master
 backup-zone: backup
 interval: 1 # unit: seconds
-repeat: 10 # how many times to fetch, 0 means never stop.
+repeat: 0 # how many times to fetch, 0 means never stop.

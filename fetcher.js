@@ -26,9 +26,8 @@ const argv = yargs(hideBin(process.argv))
     })
     .argv
 
-
 class RecoverInfoCollecter {
-    constructor({ topology, masterZone, backupZone }) {
+    constructor({ topology, masterZone, backupZone, timeout }) {
         const pdServer = topology['pd_servers'].map(({ host, client_port }) => {
             if (!client_port) {
                 client_port = 2379;
@@ -55,57 +54,78 @@ class RecoverInfoCollecter {
                 }
                 return `${host}:${port}`;
             });
+
         this.pdAddr = `${pdServer.host}:${pdServer.client_port}`;
         this.masterZone = masterZone;
+
         this.promDriver = new PrometheusDriver({
             endpoint: `http://${promServer.host}:${promServer.port}`,
-            baseURL: "/api/v1"
+            baseURL: "/api/v1",
+            timeout,
         });
+        this.timeout = timeout;
     }
 
     async collectStoreIds() {
-        const { data } = await axios.get(`http://${this.pdAddr}/pd/api/v1/stores`);
-        const { stores } = data;
-        return stores
-            .filter(({ store: { labels } }) => labels.map(({ value }) => value)
-                .includes(this.masterZone))
-            .map(({ store: { id } }) => id);
+        try {
+            const { data } = await axios.get(`http://${this.pdAddr}/pd/api/v1/stores`, { timeout: this.timeout });
+            const { stores } = data;
+            return stores
+                .filter(({ store: { labels } }) => labels.map(({ value }) => value)
+                    .includes(this.masterZone))
+                .map(({ store: { id } }) => id);
+
+        } catch (e) {
+            return undefined;
+        }
     }
 
     async collectAllocId() {
-        const q = `pd_cluster_id{instance="${this.pdAddr}"}`;
-        const metric = await this.promDriver.instantQuery(q);
-        const series = metric.result;
-        if (series.length == 0) {
-            throw new Error('empty alloc id');
+        try {
+            const q = `pd_cluster_id{instance="${this.pdAddr}"}`;
+            const metric = await this.promDriver.instantQuery(q);
+            const series = metric.result;
+            if (series.length == 0) {
+                return undefined;
+            }
+            const id = series[series.length - 1].value.value;
+            return parseInt(id) + (2 ** 32);
+        } catch (e) {
+            return undefined;
         }
-        const id = series[series.length - 1].value.value;
-        return parseInt(id) + (2 ** 32);
     }
 
     async collectClusterId() {
-        const q = `pd_cluster_metadata{instance="${this.pdAddr}"}`;
-        const metric = await this.promDriver.instantQuery(q);
-        const series = metric.result;
-        if (series.length == 0) {
-            throw new Error('empty cluster id')
+        try {
+            const q = `pd_cluster_metadata{instance="${this.pdAddr}"}`;
+            const metric = await this.promDriver.instantQuery(q);
+            const series = metric.result;
+            if (series.length == 0) {
+                return undefined;
+            }
+            const type = series[series.length - 1].metric.labels.type;
+            const clusterId = type.slice('cluster'.length)
+            return clusterId;
+        } catch (e) {
+            return undefined;
         }
-        const type = series[series.length - 1].metric.labels.type;
-        const clusterId = type.slice('cluster'.length)
-        return clusterId;
     }
 
     async collectRPO() {
-        const q = `sum(tikv_resolved_ts_min_resolved_ts_gap_seconds) by (instance)`;
-        const metric = await this.promDriver.instantQuery(q);
-        const series = metric.result;
-        if (series.length == 0) {
-            throw new Error('empty cluster id')
+        try {
+            const q = `sum(tikv_resolved_ts_min_resolved_ts_gap_seconds) by (instance)`;
+            const metric = await this.promDriver.instantQuery(q);
+            const series = metric.result;
+            if (series.length == 0) {
+                return undefined;
+            }
+            const rpos = series.map(({ metric: { labels: { instance } }, value: { value } }) => {
+                return { instance, value };
+            }).filter(({ instance }) => this.backupNodes.includes(instance));
+            return rpos;
+        } catch (e) {
+            return undefined;
         }
-        const rpos = series.map(({ metric: { labels: { instance } }, value: { value } }) => {
-            return { instance, value };
-        }).filter(({ instance }) => this.backupNodes.includes(instance));
-        return rpos;
     }
 
     async collect() {
@@ -129,16 +149,20 @@ async function fetch(config, info) {
         topology,
         masterZone: config['master-zone'],
         backupZone: config['backup-zone'],
+        timeout: 1000,
     });
 
     try {
         const newInfo = await collector.collect()
-        if (newInfo.rpos && newInfo.rpos.length > 0) {
-            info = newInfo;
-        } else {
-            info.storeIds = newInfo.storeIds;
-            info.allocId = newInfo.allocId;
-            info.clusterId = newInfo.clusterId;
+        console.log(newInfo);
+        for (const [k, v] of Object.entries(newInfo)) {
+            if (v) {
+                console.log(k, v);
+                if (k == 'rpos' && v.length == 0) {
+                    continue;
+                }
+                info[k] = v;
+            }
         }
         fs.writeFileSync(config['save'], JSON.stringify(info));
         logger.info(`saved recover info to ${config['save']}`);
@@ -159,8 +183,9 @@ async function main() {
 
     const interval = config['interval'] ? parseInt(config['interval']) * 1000 : 1000;
     const times = config['repeat'] ? parseInt(config['repeat']) : Number.MAX_SAFE_INTEGER;
+    const info = {};
     for (let i = 0; i < times; i++) {
-        await fetch(config);
+        await fetch(config, info);
         await sleep(interval);
     }
 }
