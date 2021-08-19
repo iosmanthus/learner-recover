@@ -102,7 +102,6 @@ class RecoverInfoCollecter {
                 return undefined;
             }
             const id = series[series.length - 1].value.value;
-            console.log(id);
             return parseInt(id) + (2 ** 32);
         } catch (e) {
             return undefined;
@@ -156,7 +155,12 @@ class RecoverInfoCollecter {
     }
 }
 
-async function fetch(config, info) {
+async function fetch(config) {
+    if (fs.existsSync(config['save'])) {
+        info = JSON.parse(fs.readFileSync(config['save']));
+    } else {
+        info = {};
+    }
     const topology = yaml.load(fs.readFileSync(config['topo']));
 
     const collector = new RecoverInfoCollecter({
@@ -195,9 +199,8 @@ async function main() {
 
     const interval = config['interval'] ? parseInt(config['interval']) * 1000 : 1000;
     const times = config['repeat'] ? parseInt(config['repeat']) : Number.MAX_SAFE_INTEGER;
-    const info = {};
     for (let i = 0; i < times; i++) {
-        await fetch(config, info);
+        await fetch(config);
         await sleep(interval);
     }
 }
