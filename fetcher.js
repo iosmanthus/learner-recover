@@ -95,13 +95,14 @@ class RecoverInfoCollecter {
 
     async collectAllocId() {
         try {
-            const q = `pd_cluster_id{instance="${this.pdAddr}"}`;
+            const q = `pd_cluster_id`;
             const metric = await this.promDriver.instantQuery(q);
             const series = metric.result;
             if (series.length == 0) {
                 return undefined;
             }
             const id = series[series.length - 1].value.value;
+            console.log(id);
             return parseInt(id) + (2 ** 32);
         } catch (e) {
             return undefined;
