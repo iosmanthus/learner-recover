@@ -5,6 +5,7 @@ const fs = require('fs');
 const yargs = require('yargs/yargs')
 const { PrometheusDriver } = require('prometheus-query');
 const { hideBin } = require('yargs/helpers');
+const { isMatch } = require('./common');
 
 const winston = require('winston');
 
@@ -26,14 +27,25 @@ const argv = yargs(hideBin(process.argv))
     })
     .argv
 
+
+
+
+function labelsObject(labels) {
+    let object = {};
+    for (const { key, value } of labels) {
+        object[key] = value;
+    }
+    return object
+}
 class RecoverInfoCollecter {
-    constructor({ topology, masterZone, backupZone, timeout }) {
-        const pdServer = topology['pd_servers'].map(({ host, client_port }) => {
-            if (!client_port) {
-                client_port = 2379;
-            }
-            return { host, client_port }
-        })[0];
+    constructor({ topology, masterLabels, backupLabels, timeout }) {
+        const pdServer = topology['pd_servers'].map(
+            ({ host, client_port }) => {
+                if (!client_port) {
+                    client_port = 2379;
+                }
+                return { host, client_port }
+            })[0];
 
         const promServer = topology['monitoring_servers'].map(({ host, port }) => {
             if (!port) {
@@ -45,8 +57,8 @@ class RecoverInfoCollecter {
         this.backupNodes = topology['tikv_servers']
             .filter(
                 ({
-                    config: { 'server.labels': { zone } } }
-                ) => zone === backupZone
+                    config: { 'server.labels': labels } }
+                ) => isMatch(backupLabels, labels)
             )
             .map(({ host, port }) => {
                 if (!port) {
@@ -56,7 +68,7 @@ class RecoverInfoCollecter {
             });
 
         this.pdAddr = `${pdServer.host}:${pdServer.client_port}`;
-        this.masterZone = masterZone;
+        this.masterLabels = masterLabels;
 
         this.promDriver = new PrometheusDriver({
             endpoint: `http://${promServer.host}:${promServer.port}`,
@@ -71,8 +83,9 @@ class RecoverInfoCollecter {
             const { data } = await axios.get(`http://${this.pdAddr}/pd/api/v1/stores`, { timeout: this.timeout });
             const { stores } = data;
             return stores
-                .filter(({ store: { labels } }) => labels.map(({ value }) => value)
-                    .includes(this.masterZone))
+                .filter(({ store: { labels } }) =>
+                    isMatch(this.masterLabels, labelsObject(labels))
+                )
                 .map(({ store: { id } }) => id);
 
         } catch (e) {
@@ -147,17 +160,15 @@ async function fetch(config, info) {
 
     const collector = new RecoverInfoCollecter({
         topology,
-        masterZone: config['master-zone'],
-        backupZone: config['backup-zone'],
+        masterLabels: config['master-labels'],
+        backupLabels: config['backup-labels'],
         timeout: 1000,
     });
 
     try {
         const newInfo = await collector.collect()
-        console.log(newInfo);
         for (const [k, v] of Object.entries(newInfo)) {
             if (v) {
-                console.log(k, v);
                 if (k == 'rpos' && v.length == 0) {
                     continue;
                 }

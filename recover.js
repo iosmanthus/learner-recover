@@ -7,10 +7,12 @@ const { hideBin } = require('yargs/helpers')
 const axios = require('axios');
 const winston = require('winston');
 const { exit } = require('process');
+const { isMatch } = require('./common');
 
 const logger = winston.createLogger({
     transports: [new winston.transports.Console()],
     format: winston.format.combine(
+        winston.format.splat(),
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.colorize({ all: true }),
         winston.format.printf(info => `${info.timestamp} [${info.level}]: ${info.message}`),
@@ -27,15 +29,15 @@ const argv = yargs(hideBin(process.argv))
     .argv
 
 class BackupCluster {
-    constructor({ topology, zoneName, recoverInfo, logger }) {
+    constructor({ topology, backupLabels, recoverInfo, logger }) {
         this.nodes = topology['tikv_servers']
             .map(({
                 host,
                 data_dir,
                 port,
-                config: { 'server.labels': { zone } } }
-            ) => { return { host, port, data_dir, zone }; })
-            .filter(({ zone }) => zone === zoneName)
+                config: { 'server.labels': labels } }
+            ) => { return { host, port, data_dir, labels }; })
+            .filter(({ labels }) => isMatch(backupLabels, labels))
             .map(({ host, port, data_dir }) => {
                 if (!port) {
                     port = 20160;
@@ -144,8 +146,10 @@ async function recover() {
     const recoverInfo = JSON.parse(fs.readFileSync(config['recover-info-file']));
     checkRecoverInfo(recoverInfo);
 
-    const cluster = new BackupCluster({ topology, zoneName: config['recover-zone'], recoverInfo, logger });
+    const cluster = new BackupCluster({ topology, backupLabels: config['recover-zone-labels'], recoverInfo, logger });
     logger.info('Building backup cluster info');
+
+    logger.warn('recovering nodes: %O', cluster.nodes);
 
     logger.info('Preparing tikv-ctl binary for nodes');
     cluster.prepare({ tikvCtlInfo: config['tikv-ctl'] });

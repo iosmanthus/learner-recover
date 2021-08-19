@@ -1,6 +1,8 @@
 save: config/recover-info.json
 topo: config/old.yaml
-master-zone: master
-backup-zone: backup
+master-labels:
+  zone: master
+backup-labels: 
+  zone: backup
 interval: 1 # unit: seconds
 repeat: 0 # how many times to fetch, 0 means never stop.
