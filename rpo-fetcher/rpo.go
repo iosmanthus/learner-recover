@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os/exec"
-	"sort"
 	"time"
 
 	"github.com/goccy/go-yaml"
@@ -26,6 +25,37 @@ type Config struct {
 	Voters      []string `yaml:"voters"`
 	Learners    []string `yaml:"learners"`
 	TikvCtlPath string   `yaml:"tikv-ctl"`
+	HistoryPath string   `yaml:"history-path"`
+	LastFor     time.Duration
+}
+
+func (c *Config) UnmarshalYAML(data []byte) error {
+	type config struct {
+		Voters      []string `yaml:"voters"`
+		Learners    []string `yaml:"learners"`
+		TikvCtlPath string   `yaml:"tikv-ctl"`
+		HistoryPath string   `yaml:"history-path"`
+		LastFor     string   `yaml:"last-for"`
+	}
+
+	cfg := &config{}
+	if err := yaml.Unmarshal(data, cfg); err != nil {
+		return err
+	}
+
+	lastFor, err := time.ParseDuration(cfg.LastFor)
+	if err != nil {
+		return err
+	}
+
+	*c = Config{
+		cfg.Voters,
+		cfg.Learners,
+		cfg.TikvCtlPath,
+		cfg.HistoryPath,
+		lastFor,
+	}
+	return nil
 }
 
 type RegionId uint64
@@ -80,44 +110,71 @@ func (r *RegionInfos) Merge(other *RegionInfos) {
 type RegionState struct {
 	RegionId   RegionId `json:"region_id"`
 	ApplyState struct {
-		AppliedIndex uint64 `json:"applied_index"`
-		Timestamp    time.Time
+		AppliedIndex uint64    `json:"applied_index"`
+		Timestamp    time.Time `json:"timestamp"`
 	} `json:"raft_apply_state"`
 }
 
 type ApplyHistory struct {
-	history map[RegionId][]*RegionState
-	birth   time.Time
+	History map[RegionId][]*RegionState `json:"history"`
+	Birth   time.Time                   `json:"birth"`
 }
 
 func NewApplyHistory() *ApplyHistory {
 	return &ApplyHistory{
-		history: make(map[RegionId][]*RegionState),
-		birth:   time.Now(),
+		History: make(map[RegionId][]*RegionState),
+		Birth:   time.Now(),
 	}
+}
+
+func FromFile(path string) (*ApplyHistory, error) {
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	history := &ApplyHistory{}
+	if err = json.Unmarshal(data, history); err != nil {
+		return nil, err
+	}
+
+	return history, nil
 }
 
 func (h *ApplyHistory) Update(infos *RegionInfos) {
 	for id, state := range infos.StateMap() {
-		history := h.history[id]
+		history := h.History[id]
 		if len(history) == 0 || history[len(history)-1].ApplyState.AppliedIndex != state.ApplyState.AppliedIndex {
-			h.history[id] = append(h.history[id], state)
+			h.History[id] = append(h.History[id], state)
 		} else {
-			h.history[id][len(history)-1] = state
+			h.History[id][len(history)-1] = state
 		}
 	}
 }
 
-func (h *ApplyHistory) RPOQuery(state *RegionState) time.Duration {
-	history := h.history[state.RegionId]
+func (h *ApplyHistory) RPOQuery(q *RegionState) time.Duration {
+	history := h.History[q.RegionId]
 	if len(history) == 0 {
-		return state.ApplyState.Timestamp.Sub(h.birth)
+		return q.ApplyState.Timestamp.Sub(h.Birth)
 	}
-	i := sort.Search(len(history), func(i int) bool {
-		return history[i].ApplyState.AppliedIndex <= state.ApplyState.AppliedIndex
-	})
-	h.history[state.RegionId] = history[i:]
-	return state.ApplyState.Timestamp.Sub(history[i].ApplyState.Timestamp)
+
+	var index int
+	for i, state := range history {
+		index = i
+		if state.ApplyState.AppliedIndex >= q.ApplyState.AppliedIndex {
+			break
+		}
+	}
+	h.History[q.RegionId] = history[index:]
+	return q.ApplyState.Timestamp.Sub(history[index].ApplyState.Timestamp)
+}
+
+func (h *ApplyHistory) Save(path string) error {
+	data, err := json.Marshal(h)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(path, data, 0644)
 }
 
 func NewConfig(path string) (*Config, error) {
@@ -205,7 +262,6 @@ func (w *UpdateWorker) Run(ctx context.Context, ch chan<- Result) {
 			}
 			ch <- Result{infos, nil}
 		}
-
 		time.Sleep(w.interval)
 	}
 }
@@ -221,19 +277,34 @@ func main() {
 		log.Fatal(err)
 	}
 
-	history := NewApplyHistory()
+	var history *ApplyHistory
+	if history, err = FromFile(cfg.HistoryPath); err != nil {
+		history = NewApplyHistory()
+	}
 
-	votersInfoUpdater := NewUpdateWorker(cfg.TikvCtlPath, cfg.Voters, time.Second*5)
-	learnerInfosUpdater := NewUpdateWorker(cfg.TikvCtlPath, cfg.Learners, time.Second*5)
+	votersInfoUpdater := NewUpdateWorker(cfg.TikvCtlPath, cfg.Voters, time.Millisecond*500)
+	learnerInfosUpdater := NewUpdateWorker(cfg.TikvCtlPath, cfg.Learners, time.Second*2)
 
 	voterCh := make(chan Result)
 	learnerCh := make(chan Result)
+	persistCh := make(chan struct{})
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*1)
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.LastFor)
 	defer cancel()
 
 	go votersInfoUpdater.Run(ctx, voterCh)
 	go learnerInfosUpdater.Run(ctx, learnerCh)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+				persistCh <- struct{}{}
+				time.Sleep(time.Second * 1)
+			}
+		}
+	}()
 
 	for {
 		select {
@@ -250,9 +321,19 @@ func main() {
 				log.Error(err)
 				break
 			}
-			region20 := result.StateMap()[20]
-			rpo := history.RPOQuery(region20)
-			log.Infof("%d: %v", region20.RegionId, rpo)
+
+			max := time.Duration(0)
+			for _, info := range result.StateMap() {
+				rpo := history.RPOQuery(info)
+				if rpo >= max {
+					max = rpo
+				}
+			}
+			log.Infof("RPO: %v", max)
+		case <-persistCh:
+			if err := history.Save(cfg.HistoryPath); err != nil {
+				log.Error(err)
+			}
 		}
 	}
 }

@@ -7,3 +7,7 @@ learners:
   - 172.16.4.193:20160
 
 tikv-ctl: bin/tikv-ctl
+
+last-for: 1m
+
+history-path: bin/history.json
