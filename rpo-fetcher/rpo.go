@@ -152,10 +152,10 @@ func (h *ApplyHistory) Update(infos *RegionInfos) {
 	}
 }
 
-func (h *ApplyHistory) RPOQuery(q *RegionState) time.Duration {
+func (h *ApplyHistory) RPOQuery(q *RegionState) time.Time {
 	history := h.History[q.RegionId]
 	if len(history) == 0 {
-		return q.ApplyState.Timestamp.Sub(h.Birth)
+		return h.Birth
 	}
 
 	var index int
@@ -166,7 +166,7 @@ func (h *ApplyHistory) RPOQuery(q *RegionState) time.Duration {
 		}
 	}
 	h.History[q.RegionId] = history[index:]
-	return q.ApplyState.Timestamp.Sub(history[index].ApplyState.Timestamp)
+	return history[index].ApplyState.Timestamp
 }
 
 func (h *ApplyHistory) Save(path string) error {
@@ -261,8 +261,8 @@ func (w *UpdateWorker) Run(ctx context.Context, ch chan<- Result) {
 				break
 			}
 			ch <- Result{infos, nil}
+			time.Sleep(w.interval)
 		}
-		time.Sleep(w.interval)
 	}
 }
 
@@ -323,13 +323,15 @@ func main() {
 			}
 
 			max := time.Duration(0)
+			var safeTs time.Time
 			for _, info := range result.StateMap() {
-				rpo := history.RPOQuery(info)
-				if rpo >= max {
+				ts := history.RPOQuery(info)
+				if rpo := info.ApplyState.Timestamp.Sub(ts); rpo >= max {
 					max = rpo
+					safeTs = ts
 				}
 			}
-			log.Infof("RPO: %v", max)
+			log.Infof("RPO=%v safeTs=%v", max, safeTs)
 		case <-persistCh:
 			if err := history.Save(cfg.HistoryPath); err != nil {
 				log.Error(err)

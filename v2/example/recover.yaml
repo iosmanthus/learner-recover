@@ -1,0 +1,12 @@
+cluster-version: v5.1.0
+cluster-name: iosmanthus-backup
+old-topology: example/old.yaml
+new-topology: example/new.yaml
+join-topology: example/join.yaml
+recover-info-file: example/recover-info.json
+zone-labels:
+  zone: backup
+tikv-ctl:
+  src: bin/tikv-ctl
+  dest: /root/tikv-ctl
+pd-recover-path: bin/pd-recover
