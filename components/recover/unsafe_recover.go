@@ -75,14 +75,14 @@ func (r *ClusterRescuer) dropLogs(ctx context.Context) error {
 			cmd := exec.CommandContext(ctx,
 				"ssh", "-p", fmt.Sprintf("%v", config.SSHPort), fmt.Sprintf("%s@%s", config.User, node.Host),
 				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover", "drop-unapplied-raftlog", "--all-regions")
-			err := cmd.Run()
+			output, err := cmd.CombinedOutput()
+			logHelper(output, err)
 			ch <- err
 		}(node)
 	}
 
-	for _, node := range config.Nodes {
+	for i := 0; i < len(config.Nodes); i++ {
 		if err := <-ch; err != nil {
-			log.Errorf("Fail to dropping raft logs of TiKV server on %s:%v: %v", node.Host, node.Port, err)
 			return err
 		}
 	}
@@ -123,8 +123,8 @@ func (r *ClusterRescuer) promoteLearner(ctx context.Context) error {
 				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover",
 				"remove-fail-stores", "--promote-learner", "--all-regions", "-s", stores)
 
-			fmt.Println(cmd.String())
-			err := cmd.Run()
+			output, err := cmd.CombinedOutput()
+			logHelper(output, err)
 			ch <- err
 		}(node)
 	}

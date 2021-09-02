@@ -108,17 +108,17 @@ func (r *ClusterRescuer) Stop(ctx context.Context) error {
 	return nil
 }
 
+func logHelper(output []byte, err error) {
+	out := string(output)
+	if err != nil {
+		log.Warn("%s: %v", out, err)
+	} else {
+		log.Info(out)
+	}
+}
+
 func (r *ClusterRescuer) RebuildPD(ctx context.Context) error {
 	c := r.config
-
-	logHelper := func(output []byte, err error) {
-		out := string(output)
-		if err != nil {
-			log.Warn("%s: %v", out, err)
-		} else {
-			log.Info(out)
-		}
-	}
 
 	log.Info("Rebuilding PD server")
 
