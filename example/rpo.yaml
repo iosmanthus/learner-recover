@@ -1,0 +1,13 @@
+topology: example/old.yaml
+voter-labels:
+  zone: master
+learner-labels:
+  zone: backup
+
+tikv-ctl: bin/tikv-ctl
+
+last-for: 1m
+
+history-path: bin/history.json
+
+save: bin/rpo.json

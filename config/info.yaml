@@ -1,6 +1,0 @@
-save: config/recover-info.json
-topology: config/old.yaml
-master-labels:
-  zone: master
-interval: 1s # unit: seconds
-repeat: 0 # how many times to fetch, 0 means never stop.

@@ -15,7 +15,7 @@
             {
               devShell = pkgs.mkShell {
                 hardeningDisable = [ "all" ];
-                buildInputs = with pkgs;[ nodejs go ];
+                buildInputs = with pkgs;[ go_1_16 gcc ];
               };
             }
       );
