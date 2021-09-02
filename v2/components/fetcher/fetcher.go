@@ -240,7 +240,6 @@ func (u *RecoverInfoUpdater) Init() error {
 }
 
 func (u *RecoverInfoUpdater) Update(ctx context.Context) error {
-
 	for i := 0; i < u.repeat; i++ {
 		ctx, cancel := context.WithTimeout(ctx, u.timeout)
 		info, err := u.fetcher.Fetch(ctx)

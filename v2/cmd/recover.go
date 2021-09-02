@@ -2,10 +2,9 @@ package cmd
 
 import (
 	"context"
-	log "github.com/sirupsen/logrus"
 
 	"github.com/iosmanthus/learner-recover/components/recover"
-
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -23,8 +22,11 @@ var (
 			err = rescuer.Execute(context.Background())
 			if err != nil {
 				log.Error(err)
+				return err
 			}
-			return err
+
+			log.Info("Success!")
+			return nil
 		},
 	}
 )

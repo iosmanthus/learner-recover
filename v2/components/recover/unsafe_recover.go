@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/pingcap/tiup/pkg/cluster/spec"
 	"os/exec"
 	"strings"
 	"sync"
+
+	"github.com/pingcap/tiup/pkg/cluster/spec"
 
 	"github.com/iosmanthus/learner-recover/common"
 
@@ -30,6 +30,10 @@ func isOverlap(a *common.RegionState, b *common.RegionState) bool {
 }
 
 func (c *ResolveConflicts) Merge(a *common.RegionInfos, b *common.RegionInfos) *common.RegionInfos {
+	if len(a.StateMap) == 0 {
+		return b
+	}
+
 	info := common.NewRegionInfos()
 	for _, state := range a.StateMap {
 		for _, other := range b.StateMap {
@@ -65,6 +69,8 @@ func (r *ClusterRescuer) dropLogs(ctx context.Context) error {
 
 	for _, node := range config.Nodes {
 		go func(node *spec.TiKVSpec) {
+			defer wg.Done()
+
 			log.Infof("Dropping raft logs of TiKV server on %s:%v", node.Host, node.Port)
 			cmd := exec.CommandContext(ctx,
 				"ssh", "-p", fmt.Sprintf("%v", config.SSHPort), fmt.Sprintf("%s@%s", config.User, node.Host),
@@ -76,7 +82,56 @@ func (r *ClusterRescuer) dropLogs(ctx context.Context) error {
 
 	for _, node := range config.Nodes {
 		if err := <-ch; err != nil {
-			log.Errorf("Fail to dropping raft logs of TiKV server on %s:%v", node.Host, node.Port)
+			log.Errorf("Fail to dropping raft logs of TiKV server on %s:%v: %v", node.Host, node.Port, err)
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (r *ClusterRescuer) promoteLearner(ctx context.Context) error {
+	config := r.config
+
+	ch := make(chan error, len(config.Nodes))
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	wg := &sync.WaitGroup{}
+	wg.Add(len(config.Nodes))
+	defer wg.Wait()
+
+	for _, node := range config.Nodes {
+		go func(node *spec.TiKVSpec) {
+			defer wg.Done()
+
+			// remove-fail-stores --promote-learner --all-regions
+			log.Infof("Promoting learners of TiKV server on %s:%v", node.Host, node.Port)
+
+			var stores string
+			for i, store := range config.RecoverInfoFile.StoreIDs {
+				if i == 0 {
+					stores += fmt.Sprintf("%v", store)
+				} else {
+					stores += fmt.Sprintf(",%v", store)
+				}
+			}
+
+			cmd := exec.CommandContext(ctx,
+				"ssh", "-p", fmt.Sprintf("%v", config.SSHPort), fmt.Sprintf("%s@%s", config.User, node.Host),
+				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover",
+				"remove-fail-stores", "--promote-learner", "--all-regions", "-s", stores)
+
+			fmt.Println(cmd.String())
+			err := cmd.Run()
+			ch <- err
+		}(node)
+	}
+
+	for _, node := range config.Nodes {
+		if err := <-ch; err != nil {
+			log.Errorf("Fail to promote learners of TiKV server on %s:%v: %v", node.Host, node.Port, err)
 			return err
 		}
 	}
@@ -95,7 +150,7 @@ type RemoteTiKVCtl struct {
 func (c *RemoteTiKVCtl) Fetch(ctx context.Context) (*common.RegionInfos, error) {
 	cmd := exec.CommandContext(ctx,
 		"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, c.Host),
-		c.Controller, "--data-dir", fmt.Sprintf("%s/db", c.DataDir), "raft", "region", "--all-regions")
+		c.Controller, "--db", fmt.Sprintf("%s/db", c.DataDir), "raft", "region", "--all-regions")
 
 	resp, err := cmd.Output()
 	if err != nil {
@@ -109,9 +164,10 @@ func (c *RemoteTiKVCtl) Fetch(ctx context.Context) (*common.RegionInfos, error) 
 
 	for id := range infos.StateMap {
 		infos.StateMap[id].Host = c.Host
+		infos.StateMap[id].DataDir = c.DataDir
 	}
 
-	return nil, nil
+	return infos, nil
 }
 
 func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
@@ -138,13 +194,21 @@ func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
 
 	resolver := NewResolveConflicts()
 
-	info, err := collector.Collect(ctx, fetchers, resolver)
+	_, err = collector.Collect(ctx, fetchers, resolver)
 	if err != nil {
 		return err
 	}
 
-	spew.Dump(info)
-	spew.Dump(resolver.conflicts)
+	for _, conflict := range resolver.conflicts {
+		cmd := exec.CommandContext(ctx,
+			"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
+			c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
 
-	return nil
+		err = cmd.Run()
+		if err != nil {
+			return err
+		}
+	}
+
+	return r.promoteLearner(ctx)
 }

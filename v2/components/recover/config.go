@@ -11,12 +11,15 @@ import (
 )
 
 type Config struct {
-	ClusterVersion  string
-	ClusterName     string
-	User            string
-	SSHPort         int
-	Nodes           []*spec.TiKVSpec
-	NewTopology     string
+	ClusterVersion string
+	ClusterName    string
+	User           string
+	SSHPort        int
+	Nodes          []*spec.TiKVSpec
+	NewTopology    struct {
+		Path      string
+		PDServers []*spec.PDSpec
+	}
 	JoinTopology    string
 	RecoverInfoFile *common.RecoverInfo
 	TiKVCtl         struct {
@@ -78,13 +81,21 @@ func NewConfig(path string) (*Config, error) {
 		}
 	}
 
+	newTopo := &spec.Specification{}
+	if err := spec.ParseTopologyYaml(c.NewTopology, newTopo); err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		ClusterVersion:  c.ClusterVersion,
-		ClusterName:     c.ClusterName,
-		User:            topo.GlobalOptions.User,
-		SSHPort:         topo.GlobalOptions.SSHPort,
-		Nodes:           nodes,
-		NewTopology:     c.NewTopology,
+		ClusterVersion: c.ClusterVersion,
+		ClusterName:    c.ClusterName,
+		User:           topo.GlobalOptions.User,
+		SSHPort:        topo.GlobalOptions.SSHPort,
+		Nodes:          nodes,
+		NewTopology: struct {
+			Path      string
+			PDServers []*spec.PDSpec
+		}{c.NewTopology, newTopo.PDServers},
 		JoinTopology:    c.JoinTopology,
 		RecoverInfoFile: info,
 		TiKVCtl: struct {
