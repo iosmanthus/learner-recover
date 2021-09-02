@@ -1,5 +1,5 @@
-save: example/recover-info.json
-topology: example/old.yaml
+save: config/recover-info.json
+topology: config/old.yaml
 master-labels:
   zone: master
 interval: 1s # unit: seconds

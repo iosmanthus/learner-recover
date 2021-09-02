@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-./fetcher.js -c ./config/info.yaml
+learner-recover fetch -c ./config/info.yaml

@@ -1,4 +1,4 @@
-topology: example/old.yaml
+topology: config/old.yaml
 voter-labels:
   zone: master
 learner-labels:
