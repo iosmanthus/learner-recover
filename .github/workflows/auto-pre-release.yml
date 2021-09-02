@@ -20,6 +20,7 @@ jobs:
       - name: "Build"
         run: |
           go build
+          tar -cvzf learner-recover.tar.gz learner-recover rpo.sh recover.sh fetcher.sh config
 
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
@@ -28,5 +29,4 @@ jobs:
           prerelease: true
           title: "Development Build"
           files: |
-            config
-            learner-recover
+            learner-recover.tar.gz
