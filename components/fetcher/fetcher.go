@@ -202,9 +202,9 @@ type RecoverInfoUpdater struct {
 	state   common.RecoverInfo
 	fetcher Fetcher
 
-	repeat   int
-	timeout  time.Duration
 	interval time.Duration
+	lastFor  time.Duration
+	timeout  time.Duration
 }
 
 func NewRecoverInfoUpdater(config *Config) (*RecoverInfoUpdater, error) {
@@ -216,9 +216,9 @@ func NewRecoverInfoUpdater(config *Config) (*RecoverInfoUpdater, error) {
 	return &RecoverInfoUpdater{
 		state:    common.RecoverInfo{},
 		path:     config.Save,
-		repeat:   config.Repeat,
-		timeout:  config.Timeout,
+		lastFor:  config.LastFor,
 		interval: config.Interval,
+		timeout:  config.Timeout,
 		fetcher:  fetcher,
 	}, nil
 }
@@ -240,32 +240,38 @@ func (u *RecoverInfoUpdater) Init() error {
 }
 
 func (u *RecoverInfoUpdater) Update(ctx context.Context) error {
-	for i := 0; i < u.repeat; i++ {
-		ctx, cancel := context.WithTimeout(ctx, u.timeout)
-		info, err := u.fetcher.Fetch(ctx)
-		if err != nil {
-			log.Error(err)
-		}
+	ctx, cancel := context.WithTimeout(ctx, u.lastFor)
+	defer cancel()
 
-		if info.ClusterID != "" {
-			u.state.ClusterID = info.ClusterID
-		}
-		if info.AllocID != 0 {
-			u.state.AllocID = info.AllocID
-		}
-		if info.StoreIDs != nil {
-			u.state.StoreIDs = info.StoreIDs
-		}
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		default:
+			timeout, cancel := context.WithTimeout(ctx, u.timeout)
+			info, err := u.fetcher.Fetch(timeout)
+			if err != nil {
+				log.Error(err)
+			}
 
-		if !info.IsEmpty() {
-			data, _ := json.Marshal(u.state)
+			if info.ClusterID != "" {
+				u.state.ClusterID = info.ClusterID
+			}
+			if info.AllocID != 0 {
+				u.state.AllocID = info.AllocID
+			}
+			if info.StoreIDs != nil {
+				u.state.StoreIDs = info.StoreIDs
+			}
 
-			ioutil.WriteFile(u.path, data, 0644)
-			log.Infof("sync recover info successfully, saved to %v", u.path)
+			if !info.IsEmpty() {
+				data, _ := json.Marshal(u.state)
+
+				ioutil.WriteFile(u.path, data, 0644)
+				log.Infof("sync recover info successfully, saved to %v", u.path)
+			}
+			cancel()
 		}
-
-		cancel()
 		time.Sleep(u.interval)
 	}
-	return nil
 }

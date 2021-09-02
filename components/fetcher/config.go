@@ -2,7 +2,6 @@ package fetcher
 
 import (
 	"io/ioutil"
-	"math"
 	"time"
 
 	"github.com/pingcap/tiup/pkg/cluster/spec"
@@ -13,7 +12,7 @@ type Config struct {
 	Save        string
 	Topology    *spec.Specification
 	VoterLabels map[string]string
-	Repeat      int
+	LastFor     time.Duration
 	Interval    time.Duration
 	Timeout     time.Duration
 }
@@ -23,7 +22,7 @@ func NewConfig(path string) (*Config, error) {
 		Save        string            `yaml:"save"`
 		Topology    string            `yaml:"topology"`
 		VoterLabels map[string]string `yaml:"voter-labels"`
-		Repeat      int               `yaml:"repeat"`
+		LastFor     string            `yaml:"last-for"`
 		Interval    string            `yaml:"interval"`
 		Timeout     string            `yaml:"timeout"`
 	}
@@ -36,6 +35,11 @@ func NewConfig(path string) (*Config, error) {
 	}
 
 	if err = yaml.Unmarshal(data, c); err != nil {
+		return nil, err
+	}
+
+	lastFor, err := time.ParseDuration(c.LastFor)
+	if err != nil {
 		return nil, err
 	}
 
@@ -54,15 +58,11 @@ func NewConfig(path string) (*Config, error) {
 		return nil, err
 	}
 
-	if c.Repeat == 0 {
-		c.Repeat = math.MaxInt64
-	}
-
 	return &Config{
 		Save:        c.Save,
 		Topology:    topo,
 		VoterLabels: c.VoterLabels,
-		Repeat:      c.Repeat,
+		LastFor:     lastFor,
 		Interval:    interval,
 		Timeout:     timeout,
 	}, nil

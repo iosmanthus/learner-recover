@@ -1,7 +1,7 @@
-save: config/recover-info.json
+save: bin/recover-info.json
 topology: config/old.yaml
-master-labels:
+voter-labels:
   zone: master
-interval: 1s # unit: seconds
+interval: 1s # go Duration syntax
+last-for: 1m # Ditto
 timeout: 2s
-repeat: 0 # how many times to fetch, 0 means never stop.
