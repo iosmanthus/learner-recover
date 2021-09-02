@@ -3,7 +3,7 @@ cluster-name: iosmanthus-backup
 old-topology: config/old.yaml
 new-topology: config/new.yaml
 join-topology: config/join.yaml
-recover-info-file: config/recover-info.json
+recover-info-file: bin/recover-info.json
 zone-labels:
   zone: backup
 tikv-ctl:
