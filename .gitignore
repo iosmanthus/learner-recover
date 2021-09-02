@@ -2,3 +2,5 @@
 /.idea
 /bin
 /node_modules
+learner-recover
+/config/recover-info.json
