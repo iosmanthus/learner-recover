@@ -75,8 +75,7 @@ func (r *ClusterRescuer) dropLogs(ctx context.Context) error {
 			cmd := exec.CommandContext(ctx,
 				"ssh", "-p", fmt.Sprintf("%v", config.SSHPort), fmt.Sprintf("%s@%s", config.User, node.Host),
 				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover", "drop-unapplied-raftlog", "--all-regions")
-			output, err := cmd.CombinedOutput()
-			logHelper(output, err)
+			_, err := common.Run(cmd)
 			ch <- err
 		}(node)
 	}
@@ -123,8 +122,7 @@ func (r *ClusterRescuer) promoteLearner(ctx context.Context) error {
 				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover",
 				"remove-fail-stores", "--promote-learner", "--all-regions", "-s", stores)
 
-			output, err := cmd.CombinedOutput()
-			logHelper(output, err)
+			_, err := common.Run(cmd)
 			ch <- err
 		}(node)
 	}
@@ -204,7 +202,8 @@ func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
 			"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
 			c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
 
-		err = cmd.Run()
+		_, err := common.Run(cmd)
+
 		if err != nil {
 			return err
 		}

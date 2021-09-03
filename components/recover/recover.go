@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/iosmanthus/learner-recover/common"
 	log "github.com/sirupsen/logrus"
 	"gopkg.in/resty.v1"
 )
@@ -108,47 +109,35 @@ func (r *ClusterRescuer) Stop(ctx context.Context) error {
 	return nil
 }
 
-func logHelper(output []byte, err error) {
-	out := string(output)
-	if err != nil {
-		log.Warn("%s: %v", out, err)
-	} else {
-		log.Info(out)
-	}
-}
-
 func (r *ClusterRescuer) RebuildPD(ctx context.Context) error {
 	c := r.config
 
 	log.Info("Rebuilding PD server")
 
 	cmd := exec.CommandContext(ctx, "tiup", "cluster", "deploy", "-y", c.ClusterName, c.ClusterVersion, c.NewTopology.Path)
-	output, err := cmd.CombinedOutput()
-	logHelper(output, err)
+	common.Run(cmd)
 
 	cmd = exec.CommandContext(ctx, "tiup", "cluster", "start", "-y", c.ClusterName)
-	output, err = cmd.CombinedOutput()
-	logHelper(output, err)
+	_, err := common.Run(cmd)
+	if err != nil {
+		return err
+	}
 
 	// PDRecover
 	pdServer := c.NewTopology.PDServers[0]
 	cmd = exec.CommandContext(ctx, c.PDRecoverPath,
 		"-endpoints", fmt.Sprintf("http://%s:%v", pdServer.Host, pdServer.ClientPort),
 		"-cluster-id", c.RecoverInfoFile.ClusterID, "-alloc-id", fmt.Sprintf("%v", c.RecoverInfoFile.AllocID))
-	output, err = cmd.CombinedOutput()
-	logHelper(output, err)
+	_, err = common.Run(cmd)
 
 	if err != nil {
-		log.Error("Fail to rebuild PD server")
 		return err
 	}
 
 	cmd = exec.CommandContext(ctx, "tiup", "cluster", "restart", "-y", c.ClusterName)
-	output, err = cmd.CombinedOutput()
-	logHelper(output, err)
+	common.Run(cmd)
 
 	if err != nil {
-		log.Error("Fail to rebuild PD server")
 		return err
 	}
 
@@ -176,21 +165,25 @@ func (r *ClusterRescuer) Finish(ctx context.Context) error {
 func (r *ClusterRescuer) Execute(ctx context.Context) error {
 	err := r.Prepare(ctx)
 	if err != nil {
+		log.Error("Fail to prepare tikv-ctl for TiKV learner nodes")
 		return err
 	}
 
 	err = r.Stop(ctx)
 	if err != nil {
+		log.Error("Fail to stop the TiKV learner nodes")
 		return err
 	}
 
 	err = r.UnsafeRecover(ctx)
 	if err != nil {
+		log.Error("Fail to recover the TiKV servers")
 		return err
 	}
 
 	err = r.RebuildPD(ctx)
 	if err != nil {
+		log.Error("Fail to rebuild PD")
 		return err
 	}
 
