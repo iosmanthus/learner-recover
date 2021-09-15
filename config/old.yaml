@@ -34,6 +34,9 @@ tikv_servers:
       server.labels:
         zone: master
         host: host2
+
+
+  # Learners
   - host: 172.16.4.193
     deploy_dir: /home/root/deploy/tikv
     data_dir: /home/root/data/tikv

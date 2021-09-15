@@ -1,7 +1,33 @@
 tikv_servers:
   - host: 172.16.4.193
-    port: 20161
-    status_port: 20181
-    deploy_dir: /root/deploy/tikv
-    data_dir: /root/data/tikv
-    log_dir: "/root/deploy/tikv/log"
+    port: 21163
+    status_port: 21183
+    deploy_dir: /home/root/deploy/tikv
+    data_dir: /home/root/data/tikv
+    log_dir: "/home/root/deploy/tikv/log"
+    config:
+      server.labels:
+        zone: backup
+        host: host0
+
+  - host: 172.16.4.193
+    port: 21164
+    status_port: 21184
+    deploy_dir: /home/root/deploy/tikv-scale-0
+    data_dir: /home/root/data/tikv-scale-0
+    log_dir: "/home/root/deploy/tikv-scale-0/log"
+    config:
+      server.labels:
+        zone: backup
+        host: host1
+
+  - host: 172.16.4.193
+    port: 21165
+    status_port: 21185
+    deploy_dir: /home/root/deploy/tikv-scale-1
+    data_dir: /home/root/data/tikv-scale-1
+    log_dir: "/home/root/deploy/tikv-scale-1/log"
+    config:
+      server.labels:
+        zone: backup
+        host: host2
