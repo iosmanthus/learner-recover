@@ -10,3 +10,13 @@ pd_servers:
     deploy_dir: /root/deploy/pd-new
     data_dir: /root/data/pd-new
     log_dir: "/root/deploy/pd-new/log"
+monitoring_servers:
+  - host: 172.16.4.193
+    port: 19090
+    deploy_dir: "/root/deploy/prometheus-new"
+    data_dir: "/root/data/prometheus-new"
+    log_dir: "/root/deploy/prometheus-new/log"
+grafana_servers:
+  - host: 172.16.4.193
+    port: 13000
+    deploy_dir: "/root/deploy/grafana-new"
