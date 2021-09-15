@@ -99,6 +99,7 @@ func NewLocalTiKVCtl(controller, host string) *LocalTiKVCtl {
 }
 
 func (f *LocalTiKVCtl) Fetch(ctx context.Context) (*common.RegionInfos, error) {
+	applyTS := time.Now()
 	cmd := exec.CommandContext(ctx, f.controller, "--host", f.host, "raft", "region", "--all-regions")
 	resp, err := cmd.Output()
 	if err != nil {
@@ -111,7 +112,7 @@ func (f *LocalTiKVCtl) Fetch(ctx context.Context) (*common.RegionInfos, error) {
 	}
 
 	for id := range infos.StateMap {
-		infos.StateMap[id].ApplyState.Timestamp = time.Now()
+		infos.StateMap[id].ApplyState.Timestamp = applyTS
 	}
 
 	return infos, nil

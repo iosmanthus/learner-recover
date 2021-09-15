@@ -46,7 +46,7 @@ type RegionState struct {
 		AppliedIndex uint64    `json:"applied_index"`
 		Timestamp    time.Time `json:"timestamp"`
 	} `json:"raft_apply_state"`
-	LocalSate struct {
+	LocalState struct {
 		Region struct {
 			StartKey    string `json:"start_key"`
 			EndKey      string `json:"end_key"`

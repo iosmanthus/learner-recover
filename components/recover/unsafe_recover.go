@@ -23,9 +23,24 @@ func NewResolveConflicts() *ResolveConflicts {
 	return &ResolveConflicts{}
 }
 
+func (r *ResolveConflicts) ResolveConflicts(ctx context.Context, c *Config) error {
+	for _, conflict := range r.conflicts {
+		cmd := exec.CommandContext(ctx,
+			"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
+			c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
+
+		_, err := common.Run(cmd)
+
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func isOverlap(a *common.RegionState, b *common.RegionState) bool {
-	m, n := a.LocalSate.Region.StartKey, a.LocalSate.Region.EndKey
-	p, q := b.LocalSate.Region.StartKey, b.LocalSate.Region.EndKey
+	m, n := a.LocalState.Region.StartKey, a.LocalState.Region.EndKey
+	p, q := b.LocalState.Region.StartKey, b.LocalState.Region.EndKey
 	return (n == "" || strings.Compare(n, p) > 0) && (q == "" || strings.Compare(q, m) > 0)
 }
 
@@ -38,8 +53,9 @@ func (c *ResolveConflicts) Merge(a *common.RegionInfos, b *common.RegionInfos) *
 	for _, state := range a.StateMap {
 		for _, other := range b.StateMap {
 			if isOverlap(state, other) {
-				if state.LocalSate.Region.RegionEpoch.Version > other.LocalSate.Region.RegionEpoch.Version ||
-					state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
+				version1 := state.LocalState.Region.RegionEpoch.Version
+				version2 := other.LocalState.Region.RegionEpoch.Version
+				if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
 					info.StateMap[state.RegionId] = state
 					c.conflicts = append(c.conflicts, other)
 				} else {
@@ -197,16 +213,9 @@ func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
 		return err
 	}
 
-	for _, conflict := range resolver.conflicts {
-		cmd := exec.CommandContext(ctx,
-			"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
-			c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
-
-		_, err := common.Run(cmd)
-
-		if err != nil {
-			return err
-		}
+	err = resolver.ResolveConflicts(ctx, c)
+	if err != nil {
+		return err
 	}
 
 	return r.promoteLearner(ctx)
