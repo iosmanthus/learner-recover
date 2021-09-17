@@ -3,4 +3,5 @@
 /bin
 /node_modules
 learner-recover
+/dist
 /config/recover-info.json
