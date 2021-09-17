@@ -2,6 +2,7 @@ package recover
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 
 	"github.com/iosmanthus/learner-recover/common"
@@ -79,6 +80,9 @@ func NewConfig(path string) (*Config, error) {
 		if common.IsLabelsMatch(c.ZoneLabels, serverLabels) {
 			nodes = append(nodes, tikv)
 		}
+	}
+	if len(nodes) == 0 {
+		return nil, errors.New("no TiKV nodes in the cluster, please check the topology file")
 	}
 
 	newTopo := &spec.Specification{}

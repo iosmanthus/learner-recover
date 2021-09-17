@@ -166,7 +166,10 @@ func NewGenerator(config *Config) *Generator {
 	if history, err = FromFile(config.HistoryPath); err != nil {
 		history = NewApplyHistory()
 	}
-	return &Generator{config, history}
+	return &Generator{
+		config:  config,
+		history: history,
+	}
 }
 
 type RPO struct {

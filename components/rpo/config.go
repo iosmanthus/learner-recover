@@ -1,12 +1,14 @@
 package rpo
 
 import (
+	"errors"
 	"fmt"
-	"github.com/iosmanthus/learner-recover/common"
-	"github.com/pingcap/tiup/pkg/cluster/spec"
 	"io/ioutil"
 	"time"
 
+	"github.com/iosmanthus/learner-recover/common"
+
+	"github.com/pingcap/tiup/pkg/cluster/spec"
 	"gopkg.in/yaml.v2"
 )
 
@@ -68,6 +70,13 @@ func NewConfig(path string) (*Config, error) {
 		} else if common.IsLabelsMatch(c.LearnerLabels, serverLabels) {
 			learners = append(learners, host)
 		}
+	}
+
+	if len(voters) == 0 {
+		return nil, errors.New("no voters in the cluster, please check the topology file")
+	}
+	if len(learners) == 0 {
+		return nil, errors.New("no learners in the cluster, please check the topology file")
 	}
 
 	return &Config{
