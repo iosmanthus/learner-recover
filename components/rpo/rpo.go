@@ -224,7 +224,7 @@ func (g *Generator) Gen(ctx context.Context) error {
 			var safeTime time.Time
 			for _, info := range result.StateMap {
 				ts := g.history.RPOQuery(info)
-				if lag := info.ApplyState.Timestamp.Sub(ts); lag >= max {
+				if lag := info.ApplyState.Timestamp.Sub(ts); lag >= max && ts.After(safeTime) {
 					max = lag
 					safeTime = ts
 				}
@@ -237,7 +237,10 @@ func (g *Generator) Gen(ctx context.Context) error {
 				break
 			}
 
-			ioutil.WriteFile(config.Save, data, 0644)
+			err = ioutil.WriteFile(config.Save, data, 0644)
+			if err != nil {
+				log.Error(err)
+			}
 			log.WithFields(map[string]interface{}{
 				"lag":      rpo.Lag,
 				"safeTime": rpo.SafeTime,
