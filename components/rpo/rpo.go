@@ -177,6 +177,18 @@ type RPO struct {
 	SafeTime time.Time     `json:"safe-time"`
 }
 
+func (r *RPO) MarshalJSON() ([]byte, error) {
+	type _RPO struct {
+		Lag      string    `json:"lag"`
+		SafeTime time.Time `json:"safe-time"`
+	}
+	t := &_RPO{
+		Lag:      r.Lag.String(),
+		SafeTime: r.SafeTime,
+	}
+	return json.Marshal(t)
+}
+
 func (g *Generator) Gen(ctx context.Context) error {
 	config := g.config
 	votersInfoUpdater := NewUpdateWorker(config.TikvCtlPath, config.Voters, time.Millisecond*500)
