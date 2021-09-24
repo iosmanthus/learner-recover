@@ -24,7 +24,6 @@ type Config struct {
 func NewConfig(path string) (*Config, error) {
 	type _Config struct {
 		Topology      string            `yaml:"topology"`
-		VoterLabels   map[string]string `yaml:"voter-labels"`
 		LearnerLabels map[string]string `yaml:"learner-labels"`
 		TikvCtlPath   string            `yaml:"tikv-ctl"`
 		HistoryPath   string            `yaml:"history-path"`
@@ -65,10 +64,10 @@ func NewConfig(path string) (*Config, error) {
 
 		host := fmt.Sprintf("%s:%v", node.Host, node.Port)
 
-		if common.IsLabelsMatch(c.VoterLabels, serverLabels) {
-			voters = append(voters, host)
-		} else if common.IsLabelsMatch(c.LearnerLabels, serverLabels) {
+		if common.IsLabelsMatch(c.LearnerLabels, serverLabels) {
 			learners = append(learners, host)
+		} else {
+			voters = append(voters, host)
 		}
 	}
 

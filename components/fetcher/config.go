@@ -9,22 +9,22 @@ import (
 )
 
 type Config struct {
-	Save        string
-	Topology    *spec.Specification
-	VoterLabels map[string]string
-	LastFor     time.Duration
-	Interval    time.Duration
-	Timeout     time.Duration
+	Save          string
+	Topology      *spec.Specification
+	LearnerLabels map[string]string
+	LastFor       time.Duration
+	Interval      time.Duration
+	Timeout       time.Duration
 }
 
 func NewConfig(path string) (*Config, error) {
 	type _Config struct {
-		Save        string            `yaml:"save"`
-		Topology    string            `yaml:"topology"`
-		VoterLabels map[string]string `yaml:"voter-labels"`
-		LastFor     string            `yaml:"last-for"`
-		Interval    string            `yaml:"interval"`
-		Timeout     string            `yaml:"timeout"`
+		Save          string            `yaml:"save"`
+		Topology      string            `yaml:"topology"`
+		LearnerLabels map[string]string `yaml:"learner-labels"`
+		LastFor       string            `yaml:"last-for"`
+		Interval      string            `yaml:"interval"`
+		Timeout       string            `yaml:"timeout"`
 	}
 
 	c := &_Config{}
@@ -59,11 +59,11 @@ func NewConfig(path string) (*Config, error) {
 	}
 
 	return &Config{
-		Save:        c.Save,
-		Topology:    topo,
-		VoterLabels: c.VoterLabels,
-		LastFor:     lastFor,
-		Interval:    interval,
-		Timeout:     timeout,
+		Save:          c.Save,
+		Topology:      topo,
+		LearnerLabels: c.LearnerLabels,
+		LastFor:       lastFor,
+		Interval:      interval,
+		Timeout:       timeout,
 	}, nil
 }

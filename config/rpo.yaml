@@ -1,6 +1,4 @@
 topology: config/old.yaml
-voter-labels:
-  zone: master
 learner-labels:
   zone: backup
 

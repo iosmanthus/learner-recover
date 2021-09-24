@@ -24,14 +24,14 @@ type Fetcher interface {
 }
 
 type RecoverInfoFetcher struct {
-	pdServers    []*spec.PDSpec
-	promDriver   promapi.API
-	masterLabels map[string]string
-	timeout      time.Duration
+	pdServers     []*spec.PDSpec
+	promDriver    promapi.API
+	learnerLabels map[string]string
+	timeout       time.Duration
 }
 
 func NewRecoverInfoFetcher(
-	topology *spec.Specification, masterLabels map[string]string, timeout time.Duration,
+	topology *spec.Specification, learnerLabels map[string]string, timeout time.Duration,
 ) (*RecoverInfoFetcher, error) {
 	if len(topology.PDServers) == 0 || len(topology.TiKVServers) == 0 || len(topology.Monitors) == 0 {
 		return nil, errors.New("invalid topology")
@@ -46,10 +46,10 @@ func NewRecoverInfoFetcher(
 	}
 
 	return &RecoverInfoFetcher{
-		pdServers:    topology.PDServers,
-		promDriver:   promapi.NewAPI(client),
-		masterLabels: masterLabels,
-		timeout:      timeout,
+		pdServers:     topology.PDServers,
+		promDriver:    promapi.NewAPI(client),
+		learnerLabels: learnerLabels,
+		timeout:       timeout,
 	}, nil
 }
 
@@ -68,7 +68,7 @@ func (g *getStores) UnmarshalJSON(data []byte) error {
 				Labels []struct {
 					Key   string `json:"key"`
 					Value string `json:"value"`
-				} `json:"labels"`
+				} `json:"learnerLabels"`
 			} `json:"store"`
 		} `json:"stores"`
 	}
@@ -111,7 +111,7 @@ func (f *RecoverInfoFetcher) fetchStoreIDs(ctx context.Context) ([]uint64, error
 
 	storeIDs := make([]uint64, 0, len(stores.Stores))
 	for _, store := range stores.Stores {
-		if common.IsLabelsMatch(f.masterLabels, store.Labels) {
+		if !common.IsLabelsMatch(f.learnerLabels, store.Labels) {
 			storeIDs = append(storeIDs, store.ID)
 		}
 	}
@@ -208,7 +208,7 @@ type RecoverInfoUpdater struct {
 }
 
 func NewRecoverInfoUpdater(config *Config) (*RecoverInfoUpdater, error) {
-	fetcher, err := NewRecoverInfoFetcher(config.Topology, config.VoterLabels, config.Timeout)
+	fetcher, err := NewRecoverInfoFetcher(config.Topology, config.LearnerLabels, config.Timeout)
 	if err != nil {
 		return nil, err
 	}
