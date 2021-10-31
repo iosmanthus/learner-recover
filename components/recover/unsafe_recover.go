@@ -49,26 +49,20 @@ func (c *ResolveConflicts) Merge(a *common.RegionInfos, b *common.RegionInfos) *
 		return b
 	}
 
-	info := common.NewRegionInfos()
 	for _, state := range a.StateMap {
 		for _, other := range b.StateMap {
 			if isOverlap(state, other) {
 				version1 := state.LocalState.Region.RegionEpoch.Version
 				version2 := other.LocalState.Region.RegionEpoch.Version
 				if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
-					info.StateMap[state.RegionId] = state
 					c.conflicts = append(c.conflicts, other)
 				} else {
-					info.StateMap[other.RegionId] = other
 					c.conflicts = append(c.conflicts, state)
 				}
-			} else {
-				info.StateMap[state.RegionId] = state
-				info.StateMap[other.RegionId] = other
 			}
 		}
 	}
-	return info
+	return nil
 }
 
 func (r *ClusterRescuer) dropLogs(ctx context.Context) error {
