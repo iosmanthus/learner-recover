@@ -26,13 +26,19 @@ func NewResolveConflicts() *ResolveConflicts {
 }
 
 func (r *ResolveConflicts) ResolveConflicts(ctx context.Context, c *Config) error {
+	result := make(chan error, len(r.conflicts))
 	for _, conflict := range r.conflicts {
-		cmd := exec.CommandContext(ctx,
-			"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
-			c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
+		go func(conflict *common.RegionState) {
+			cmd := exec.CommandContext(ctx,
+				"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
+				c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
 
-		_, err := common.Run(cmd)
-
+			_, err := common.Run(cmd)
+			result <- err
+		}(conflict)
+	}
+	for i := 0; i < len(r.conflicts); i++ {
+		err := <-result
 		if err != nil {
 			return err
 		}
