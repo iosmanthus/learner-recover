@@ -183,6 +183,8 @@ func (c *RemoteTiKVCtl) Fetch(ctx context.Context) (*common.RegionInfos, error) 
 		infos.StateMap[id].DataDir = c.DataDir
 	}
 
+	log.Infof("[done] fetching region infos from: %s", c.Host)
+
 	return infos, nil
 }
 
