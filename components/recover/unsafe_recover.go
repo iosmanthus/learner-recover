@@ -163,6 +163,7 @@ type RemoteTiKVCtl struct {
 }
 
 func (c *RemoteTiKVCtl) Fetch(ctx context.Context) (*common.RegionInfos, error) {
+	log.Info("fetching region infos from: %s", c.Host)
 	cmd := exec.CommandContext(ctx,
 		"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, c.Host),
 		c.Controller, "--db", fmt.Sprintf("%s/db", c.DataDir), "raft", "region", "--all-regions")
