@@ -1,3 +1,3 @@
 #!/usr/bin/env bash
 
-learner-recover recover -c ./config/recover.yaml
+./learner-recover recover -c ./config/recover.yaml
