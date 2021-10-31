@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/btree"
+	"strings"
 	"time"
 )
 
@@ -55,6 +57,11 @@ type RegionState struct {
 			} `json:"region_epoch"`
 		} `json:"region"`
 	} `json:"region_local_state"`
+}
+
+func (r *RegionState) Less(than btree.Item) bool {
+	v := than.(*RegionState)
+	return strings.Compare(r.LocalState.Region.StartKey, v.LocalState.Region.StartKey) < 0
 }
 
 type Aggregator interface {

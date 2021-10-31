@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/google/btree"
 	"os/exec"
 	"strings"
 	"sync"
@@ -17,6 +18,7 @@ import (
 
 type ResolveConflicts struct {
 	conflicts []*common.RegionState
+	index     *btree.BTree
 }
 
 func NewResolveConflicts() *ResolveConflicts {
@@ -44,24 +46,55 @@ func isOverlap(a *common.RegionState, b *common.RegionState) bool {
 	return (n == "" || strings.Compare(n, p) > 0) && (q == "" || strings.Compare(q, m) > 0)
 }
 
-func (c *ResolveConflicts) Merge(a *common.RegionInfos, b *common.RegionInfos) *common.RegionInfos {
-	if len(a.StateMap) == 0 {
-		return b
+func (r *ResolveConflicts) Merge(_ *common.RegionInfos, b *common.RegionInfos) *common.RegionInfos {
+	if r.index.Len() == 0 {
+		for _, state := range b.StateMap {
+			r.index.ReplaceOrInsert(state)
+		}
+		return nil
 	}
 
-	for _, state := range a.StateMap {
-		for _, other := range b.StateMap {
-			if isOverlap(state, other) {
+	for _, state := range b.StateMap {
+		todo := state
+		r.index.AscendGreaterOrEqual(state, func(i btree.Item) bool {
+			other := i.(*common.RegionState)
+			end := other.LocalState.Region.EndKey
+			if end == "" || strings.Compare(end, state.LocalState.Region.StartKey) > 0 {
 				version1 := state.LocalState.Region.RegionEpoch.Version
 				version2 := other.LocalState.Region.RegionEpoch.Version
 				if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
-					c.conflicts = append(c.conflicts, other)
+					r.conflicts = append(r.conflicts, other)
 				} else {
-					c.conflicts = append(c.conflicts, state)
+					todo = nil
+					r.conflicts = append(r.conflicts, state)
 				}
+				return false
 			}
+			return true
+		})
+		if todo != nil {
+			r.index.ReplaceOrInsert(todo)
 		}
 	}
+	//for _, state := range a.StateMap {
+	//	for _, other := range b.StateMap {
+	//		if isOverlap(state, other) {
+	//			version1 := state.LocalState.Region.RegionEpoch.Version
+	//			version2 := other.LocalState.Region.RegionEpoch.Version
+	//			if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
+	//				info.StateMap[state.RegionId] = state
+	//				r.conflicts = append(r.conflicts, other)
+	//			} else {
+	//				info.StateMap[other.RegionId] = other
+	//				r.conflicts = append(r.conflicts, state)
+	//			}
+	//		} else {
+	//			info.StateMap[state.RegionId] = state
+	//			info.StateMap[other.RegionId] = other
+	//		}
+	//	}
+	//}
+
 	return nil
 }
 
