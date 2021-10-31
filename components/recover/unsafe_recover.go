@@ -22,7 +22,7 @@ type ResolveConflicts struct {
 }
 
 func NewResolveConflicts() *ResolveConflicts {
-	return &ResolveConflicts{}
+	return &ResolveConflicts{index: btree.New(2)}
 }
 
 func (r *ResolveConflicts) ResolveConflicts(ctx context.Context, c *Config) error {
