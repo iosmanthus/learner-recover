@@ -88,6 +88,7 @@ func (r *ClusterRescuer) dropLogs(ctx context.Context) error {
 			defer wg.Done()
 
 			log.Infof("Dropping raft logs of TiKV server on %s:%v", node.Host, node.Port)
+			log.Warnf("executing on directory: %s/db", node.DataDir)
 			cmd := exec.CommandContext(ctx,
 				"ssh", "-p", fmt.Sprintf("%v", config.SSHPort), fmt.Sprintf("%s@%s", config.User, node.Host),
 				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover", "drop-unapplied-raftlog", "--all-regions")
