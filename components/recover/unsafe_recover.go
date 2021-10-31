@@ -5,11 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/google/btree"
+	"github.com/pingcap/tiup/pkg/cluster/spec"
 	"os/exec"
 	"strings"
 	"sync"
-
-	"github.com/pingcap/tiup/pkg/cluster/spec"
 
 	"github.com/iosmanthus/learner-recover/common"
 
@@ -68,35 +67,85 @@ func (r *ResolveConflicts) ResolveConflicts(ctx context.Context, c *Config) erro
 //	return (n == "" || strings.Compare(n, p) > 0) && (q == "" || strings.Compare(q, m) > 0)
 //}
 
+type Item struct {
+	SortKey string
+	*common.RegionState
+}
+
+func (i *Item) Less(than btree.Item) bool {
+	v := than.(*Item)
+	return strings.Compare(i.SortKey, v.SortKey) >= 0
+}
+
 func (r *ResolveConflicts) Merge(_ *common.RegionInfos, b *common.RegionInfos) *common.RegionInfos {
 	if r.index.Len() == 0 {
 		for _, state := range b.StateMap {
-			r.index.ReplaceOrInsert(state)
+			r.index.ReplaceOrInsert(&Item{
+				SortKey:     state.LocalState.Region.StartKey,
+				RegionState: state,
+			})
 		}
 		return nil
 	}
 
 	for _, state := range b.StateMap {
-		todo := state
-		r.index.AscendGreaterOrEqual(state, func(i btree.Item) bool {
-			other := i.(*common.RegionState)
-			end := other.LocalState.Region.EndKey
-			if end == "" || strings.Compare(end, state.LocalState.Region.StartKey) > 0 {
-				version1 := state.LocalState.Region.RegionEpoch.Version
-				version2 := other.LocalState.Region.RegionEpoch.Version
-				if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
-					r.conflicts = append(r.conflicts, other)
-				} else {
-					todo = nil
-					r.conflicts = append(r.conflicts, state)
-				}
-				return false
+		var other *Item
+		if state.LocalState.Region.EndKey == "" {
+			other = r.index.Min().(*Item)
+		} else {
+			item := &Item{
+				SortKey: state.LocalState.Region.EndKey,
 			}
-			return true
-		})
-		if todo != nil {
-			r.index.ReplaceOrInsert(todo)
+			r.index.AscendGreaterOrEqual(item, func(i btree.Item) bool {
+				other = i.(*Item)
+				return false
+			})
 		}
+
+		if other != nil &&
+			(other.LocalState.Region.EndKey == "" ||
+				strings.Compare(other.LocalState.Region.EndKey, state.LocalState.Region.StartKey) > 0) {
+			// resolve conflicts
+			version1 := state.LocalState.Region.RegionEpoch.Version
+			version2 := other.LocalState.Region.RegionEpoch.Version
+			if version1 > version2 ||
+				(version1 == version2 && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex) {
+
+				r.conflicts = append(r.conflicts, other.RegionState)
+				r.index.Delete(other)
+				r.index.ReplaceOrInsert(&Item{
+					SortKey:     state.LocalState.Region.StartKey,
+					RegionState: state,
+				})
+			} else {
+				r.conflicts = append(r.conflicts, state)
+			}
+		} else {
+			r.index.ReplaceOrInsert(&Item{
+				SortKey:     state.LocalState.Region.StartKey,
+				RegionState: state,
+			})
+		}
+
+		//r.index.AscendGreaterOrEqual(state, func(i btree.Item) bool {
+		//	other := i.(*common.RegionState)
+		//	end := other.LocalState.Region.EndKey
+		//	if end == "" || strings.Compare(end, state.LocalState.Region.StartKey) > 0 {
+		//		version1 := state.LocalState.Region.RegionEpoch.Version
+		//		version2 := other.LocalState.Region.RegionEpoch.Version
+		//		if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
+		//			r.conflicts = append(r.conflicts, other)
+		//		} else {
+		//			todo = nil
+		//			r.conflicts = append(r.conflicts, state)
+		//		}
+		//		return false
+		//	}
+		//	return true
+		//})
+		//if todo != nil {
+		//	r.index.ReplaceOrInsert(todo)
+		//}
 	}
 	//for _, state := range a.StateMap {
 	//	for _, other := range b.StateMap {
