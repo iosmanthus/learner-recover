@@ -208,7 +208,7 @@ func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
 		fetchers = append(fetchers, fetcher)
 	}
 
-	log.Warn("resolving region conflicts")
+	log.Info("fetching region infos")
 	resolver := NewResolveConflicts()
 
 	_, err = collector.Collect(ctx, fetchers, resolver)
@@ -216,6 +216,7 @@ func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
 		return err
 	}
 
+	log.Warn("resolving region conflicts")
 	err = resolver.ResolveConflicts(ctx, c)
 	if err != nil {
 		return err
