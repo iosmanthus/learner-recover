@@ -16,7 +16,6 @@ import (
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
 	log "github.com/sirupsen/logrus"
-	"gopkg.in/resty.v1"
 )
 
 type Fetcher interface {
@@ -111,6 +110,7 @@ func (f *RecoverInfoFetcher) fetchStoreIDs(ctx context.Context) ([]uint64, error
 
 	storeIDs := make([]uint64, 0, len(stores.Stores))
 	for _, store := range stores.Stores {
+		log.Info(store.Labels)
 		if !common.IsLabelsMatch(f.learnerLabels, store.Labels) {
 			storeIDs = append(storeIDs, store.ID)
 		}
