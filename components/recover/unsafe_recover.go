@@ -127,45 +127,7 @@ func (r *ResolveConflicts) Merge(_ *common.RegionInfos, b *common.RegionInfos) *
 			})
 		}
 
-		//r.index.AscendGreaterOrEqual(state, func(i btree.Item) bool {
-		//	other := i.(*common.RegionState)
-		//	end := other.LocalState.Region.EndKey
-		//	if end == "" || strings.Compare(end, state.LocalState.Region.StartKey) > 0 {
-		//		version1 := state.LocalState.Region.RegionEpoch.Version
-		//		version2 := other.LocalState.Region.RegionEpoch.Version
-		//		if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
-		//			r.conflicts = append(r.conflicts, other)
-		//		} else {
-		//			todo = nil
-		//			r.conflicts = append(r.conflicts, state)
-		//		}
-		//		return false
-		//	}
-		//	return true
-		//})
-		//if todo != nil {
-		//	r.index.ReplaceOrInsert(todo)
-		//}
 	}
-	//for _, state := range a.StateMap {
-	//	for _, other := range b.StateMap {
-	//		if isOverlap(state, other) {
-	//			version1 := state.LocalState.Region.RegionEpoch.Version
-	//			version2 := other.LocalState.Region.RegionEpoch.Version
-	//			if version1 > version2 || (version1 == version2) && state.ApplyState.AppliedIndex >= other.ApplyState.AppliedIndex {
-	//				info.StateMap[state.RegionId] = state
-	//				r.conflicts = append(r.conflicts, other)
-	//			} else {
-	//				info.StateMap[other.RegionId] = other
-	//				r.conflicts = append(r.conflicts, state)
-	//			}
-	//		} else {
-	//			info.StateMap[state.RegionId] = state
-	//			info.StateMap[other.RegionId] = other
-	//		}
-	//	}
-	//}
-
 	return nil
 }
 

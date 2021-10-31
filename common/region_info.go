@@ -35,6 +35,12 @@ func (r *RegionInfos) UnmarshalJSON(data []byte) error {
 
 	r.StateMap = tmp["region_infos"]
 
+	for id, state := range r.StateMap {
+		if state.ApplyState.AppliedIndex == 0 {
+			delete(r.StateMap, id)
+		}
+	}
+
 	return nil
 }
 
