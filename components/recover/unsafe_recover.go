@@ -26,19 +26,35 @@ func NewResolveConflicts() *ResolveConflicts {
 }
 
 func (r *ResolveConflicts) ResolveConflicts(ctx context.Context, c *Config) error {
-	result := make(chan error, len(r.conflicts))
-	for _, conflict := range r.conflicts {
-		go func(conflict *common.RegionState) {
-			cmd := exec.CommandContext(ctx,
-				"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), fmt.Sprintf("%s@%s", c.User, conflict.Host),
-				c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", fmt.Sprintf("%v", conflict.RegionId))
-
-			_, err := common.Run(cmd)
-			result <- err
-		}(conflict)
+	type Target struct {
+		DataDir string
+		IDs     []common.RegionId
 	}
-	for i := 0; i < len(r.conflicts); i++ {
-		err := <-result
+
+	conflicts := make(map[string]*Target)
+	for _, conflict := range r.conflicts {
+		target := fmt.Sprintf("%s@%s", c.User, conflict.Host)
+		if _, ok := conflicts[target]; !ok {
+			conflicts[target] = &Target{DataDir: conflict.DataDir}
+		}
+		conflicts[target].IDs = append(conflicts[target].IDs, conflict.RegionId)
+	}
+
+	for target, conflict := range conflicts {
+		s := ""
+		for i, id := range conflict.IDs {
+			if i == 0 {
+				s = fmt.Sprintf("%v", id)
+			} else {
+				s += fmt.Sprintf(",%v", id)
+			}
+		}
+
+		cmd := exec.CommandContext(ctx,
+			"ssh", "-p", fmt.Sprintf("%v", c.SSHPort), target,
+			c.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", conflict.DataDir), "tombstone", "--force", "-r", s)
+
+		_, err := common.Run(cmd)
 		if err != nil {
 			return err
 		}
@@ -46,11 +62,11 @@ func (r *ResolveConflicts) ResolveConflicts(ctx context.Context, c *Config) erro
 	return nil
 }
 
-func isOverlap(a *common.RegionState, b *common.RegionState) bool {
-	m, n := a.LocalState.Region.StartKey, a.LocalState.Region.EndKey
-	p, q := b.LocalState.Region.StartKey, b.LocalState.Region.EndKey
-	return (n == "" || strings.Compare(n, p) > 0) && (q == "" || strings.Compare(q, m) > 0)
-}
+//func isOverlap(a *common.RegionState, b *common.RegionState) bool {
+//	m, n := a.LocalState.Region.StartKey, a.LocalState.Region.EndKey
+//	p, q := b.LocalState.Region.StartKey, b.LocalState.Region.EndKey
+//	return (n == "" || strings.Compare(n, p) > 0) && (q == "" || strings.Compare(q, m) > 0)
+//}
 
 func (r *ResolveConflicts) Merge(_ *common.RegionInfos, b *common.RegionInfos) *common.RegionInfos {
 	if r.index.Len() == 0 {
