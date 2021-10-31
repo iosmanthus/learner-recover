@@ -199,7 +199,7 @@ func (r *ClusterRescuer) UnsafeRecover(ctx context.Context) error {
 	for _, node := range c.Nodes {
 		fetcher := &RemoteTiKVCtl{
 			Controller: c.TiKVCtl.Dest,
-			DataDir:    node.DataDir,
+			DataDir:    fmt.Sprintf("%s/%s", node.DeployDir, node.DataDir),
 			User:       c.User,
 			Host:       node.Host,
 			SSHPort:    c.SSHPort,
