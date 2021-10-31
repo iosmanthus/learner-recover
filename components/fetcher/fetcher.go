@@ -11,8 +11,8 @@ import (
 
 	"github.com/iosmanthus/learner-recover/common"
 
-	"github.com/pingcap/tiup/pkg/cluster/spec"
 	"github.com/go-resty/resty/v2"
+	"github.com/pingcap/tiup/pkg/cluster/spec"
 	prom "github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
@@ -68,7 +68,7 @@ func (g *getStores) UnmarshalJSON(data []byte) error {
 				Labels []struct {
 					Key   string `json:"key"`
 					Value string `json:"value"`
-				} `json:"learnerLabels"`
+				} `json:"labels"`
 			} `json:"store"`
 		} `json:"stores"`
 	}
@@ -111,7 +111,6 @@ func (f *RecoverInfoFetcher) fetchStoreIDs(ctx context.Context) ([]uint64, error
 
 	storeIDs := make([]uint64, 0, len(stores.Stores))
 	for _, store := range stores.Stores {
-		log.Info(store.Labels)
 		if !common.IsLabelsMatch(f.learnerLabels, store.Labels) {
 			storeIDs = append(storeIDs, store.ID)
 		}
