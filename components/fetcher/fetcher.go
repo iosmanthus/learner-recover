@@ -12,6 +12,7 @@ import (
 	"github.com/iosmanthus/learner-recover/common"
 
 	"github.com/pingcap/tiup/pkg/cluster/spec"
+	"github.com/go-resty/resty/v2"
 	prom "github.com/prometheus/client_golang/api"
 	promapi "github.com/prometheus/client_golang/api/prometheus/v1"
 	"github.com/prometheus/common/model"
