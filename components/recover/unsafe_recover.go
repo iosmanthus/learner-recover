@@ -194,9 +194,10 @@ func (r *ClusterRescuer) promoteLearner(ctx context.Context) error {
 				}
 			}
 
+			path := fmt.Sprintf("%s/%s/db", node.DeployDir, node.DataDir)
 			cmd := exec.CommandContext(ctx,
 				"ssh", "-p", fmt.Sprintf("%v", config.SSHPort), fmt.Sprintf("%s@%s", config.User, node.Host),
-				config.TiKVCtl.Dest, "--db", fmt.Sprintf("%s/db", node.DataDir), "unsafe-recover",
+				config.TiKVCtl.Dest, "--db", path, "unsafe-recover",
 				"remove-fail-stores", "--promote-learner", "--all-regions", "-s", stores)
 
 			_, err := common.Run(cmd)
